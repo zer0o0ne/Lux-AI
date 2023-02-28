@@ -46,14 +46,12 @@ class Estimator(nn.Module):
             self.net.eval()
             with torch.no_grad():
                 predictions, v = self.net(prepared_state)
+                raw_actions, env_actions, P, v = self._prepare_prediction(predictions, v, prepared_state, state, player_number)
+            return raw_actions, env_actions, P, v, prepared_state
         elif mode == "train":
             self.net.train()
             predictions, v = self.net(prepared_state) 
-        
-        if mode == "train":
-            return predictions, v
-        raw_actions, env_actions, P, v = self._prepare_prediction(predictions, v, prepared_state, state, player_number)
-        return raw_actions, env_actions, P, v, prepared_state
+            return predictions, v        
 
     def _prepare_state(self, state):
         self.ids = {"player_0": {"factories": [], "units": []}, "player_1": {"factories": [], "units": []}}
