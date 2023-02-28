@@ -80,8 +80,6 @@ def create_mask(state, type, subtype = None):
 
 def invalid_actions_factories(factory, prepared_state, player_number):
     inv_act = []
-    if factory.cargo.water < 5:
-        inv_act.append(2)
 
     collision = (prepared_state["board"][0, player_number + 2, factory.pos.x, factory.pos.y] == 1 or prepared_state["board"][0, player_number + 4, factory.pos.x, factory.pos.y] == 1).item()
     # if len(prepared_state["player_0"]["units"]) > 0 or len(prepared_state["player_1"]["units"]) > 0:
