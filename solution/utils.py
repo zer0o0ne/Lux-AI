@@ -290,3 +290,27 @@ def to_json(obj):
         return out
     else:
         return obj
+    
+def compare_action_and_array(action, array):
+    if action.act_type == 'move':
+        if array[0] != 0: return False
+        if action.move_dir != array[1]: return False
+
+    if action.act_type == 'transfer':
+        if array[0] != 1: return False
+        if action.transfer_dir != array[1]: return False
+        if action.resource != array[2]: return False
+        if action.transfer_amount != array[3]: return False
+
+    if action.act_type == 'pickup':
+        if array[0] != 2: return False
+        if action.resource != array[2]: return False
+        if action.pickup_amount != array[3]: return False
+
+    if action.act_type == 'dig':
+        if array[0] != 3: return False
+
+    if action.act_type == 'self_destruct':
+        if array[0] != 4: return False
+
+    return True

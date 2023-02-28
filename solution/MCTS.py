@@ -48,19 +48,15 @@ class MMCTS:
                     self.children.append(Node(P[i], self, env_actions[i], raw_actions[i], T = self.T))
                 update(self, v)
 
-            def _compute_action_queue(self, unit_id, n_in = 0):
+            def _compute_action_queue(self, unit_id, player, n_in = 0):
                 if len(self.children) == 0 or n_in == 20: return []
 
                 numbers = np.array([child.N for child in self.children]) 
-                sum = numbers.sum()
-                if sum == 0:
-                    return []
-                distribution = numbers / sum
-                best_child = np.argmax(distribution)
-                if unit_id in self.children[best_child].action:
-                    return self.children[best_child].action[unit_id] + self.children[best_child]._compute_action_queue(unit_id, n_in + 1)
+                best_child = np.argmax(numbers)
+                if unit_id in self.children[best_child].action[player]:
+                    return self.children[best_child].action[player][unit_id] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
                 else:
-                    return [np.array([5, 0, 0, 0, 0, 1])] + self.children[best_child]._compute_action_queue(unit_id, n_in + 1)
+                    return [np.array([5, 0, 0, 0, 0, 1])] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
 
         self.simulator = simulator
         self.estimator = estimator
@@ -104,7 +100,7 @@ class MMCTS:
         
         predicted_action = self.root.children[np.argmax(distribution)].action["player_{}".format(self.player_number)]
         actual_queue_state = state.units["player_{}".format(self.player_number)]
-        predicted_action = self._compare_action_and_queue(actual_queue_state, predicted_action)
+        predicted_action = self._compare_action_and_queue(actual_queue_state, predicted_action, "player_{}".format(self.player_number))
         return predicted_action
     
     def _check_state(self, state):
@@ -123,21 +119,21 @@ class MMCTS:
         self.root.children.clear()
         return False
     
-    def _compare_action_and_queue(self, actual_queue_state, predicted_action):
+    def _compare_action_and_queue(self, actual_queue_state, predicted_action, player):
         for unit_id in actual_queue_state:
+            if len(actual_queue_state[unit_id].action_queue) == 0:
+                predicted_action[unit_id] = self.root._compute_action_queue(unit_id, player)
+                continue
             if unit_id not in predicted_action:
-                predicted_action[unit_id] = self.root._compute_action_queue(unit_id)
-                continue
-            if len(actual_queue_state[unit_id].action_queue) == 0:
-                predicted_action[unit_id] = self.root._compute_action_queue(unit_id)
-                continue
-            if len(actual_queue_state[unit_id].action_queue) == 0:
-                predicted_action[unit_id] = self.root._compute_action_queue(unit_id)
-                continue
-            if np.all(actual_queue_state[unit_id].action_queue[0] == predicted_action[unit_id]):
+                if actual_queue_state[unit_id].action_queue[0].act_type == "recharge":
+                    continue
+                else:
+                    predicted_action[unit_id] = self.root._compute_action_queue(unit_id, player)
+                    continue
+            if compare_action_and_array(actual_queue_state[unit_id].action_queue[0], predicted_action[unit_id][0]):
                 predicted_action.pop(unit_id)
             else:
-                predicted_action[unit_id] = self.root._compute_action_queue(unit_id)
+                predicted_action[unit_id] = self.root._compute_action_queue(unit_id, player)
                 continue
 
         return predicted_action

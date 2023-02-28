@@ -10,12 +10,13 @@ from kits.python.lux.kit import GameState, process_obs, to_json, from_json, proc
 agent_dict = dict() # store potentially multiple dictionaries as kaggle imports code directly
 agent_prev_obs = dict()
 agent_cfg = {
-    "estimator_n_iter": 10,
-    "MMCTS_n_iter": 10,
-    "game_n": 1,
-    "T": 1,
-    "need_save": False
-}
+            "estimator_n_iter": 16,
+            "MMCTS_n_iter": 64,
+            "game_n": 1,
+            "T": 1,
+            "need_save": False,
+            "weights_path": 'solution/weights'
+        }
 
 def agent_fn(observation, configurations):
     """

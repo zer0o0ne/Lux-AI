@@ -9,15 +9,25 @@ sys.path.append("kits/python/solution")
 
 from agent import MMCTS_Agent
 
-def play(agent_cfg = None):
-    if agent_cfg is None:
-        agent_cfg = {
+def play(agent_cfg_1 = None, agent_cfg_2 = None):
+    if agent_cfg_1 is None:
+        agent_cfg_1 = {
             "estimator_n_iter": 16,
-            "MMCTS_n_iter": 16,
+            "MMCTS_n_iter": 64,
             "game_n": 1,
             "T": 1,
             "need_save": True,
-            "weights_path": 'solution/weights'
+            "weights_path": 'solution/weights_1'
+        }
+
+    if agent_cfg_2 is None:
+        agent_cfg_2 = {
+            "estimator_n_iter": 16,
+            "MMCTS_n_iter": 64,
+            "game_n": 1,
+            "T": 1,
+            "need_save": True,
+            "weights_path": 'solution/weights_2'
         }
 
     n_games = 3
@@ -26,8 +36,8 @@ def play(agent_cfg = None):
         env = LuxAI_S2()
         obs = env.reset()["player_0"]
         # env.env_cfg.verbose = 0
-        agent_1 = MMCTS_Agent("player_0", env.env_cfg, agent_cfg)
-        agent_2 = MMCTS_Agent("player_1", env.env_cfg, agent_cfg)
+        agent_1 = MMCTS_Agent("player_0", env.env_cfg, agent_cfg_1)
+        agent_2 = MMCTS_Agent("player_1", env.env_cfg, agent_cfg_2)
         steps_before = -obs["real_env_steps"]
 
         action = {"player_0": agent_1.early_setup(0, obs), "player_1": agent_2.early_setup(0, obs)}
@@ -71,6 +81,7 @@ def play(agent_cfg = None):
                 rew = 0
             json.dump(rew, fp)
 
-        agent_cfg["game_n"] += 1
+        agent_cfg_1["game_n"] += 1
+        agent_cfg_2["game_n"] += 1
 
-    return agent_cfg
+    return agent_cfg_1, agent_cfg_2

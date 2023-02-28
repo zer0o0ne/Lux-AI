@@ -23,5 +23,5 @@ replay.html
 /kits/java/luxai2022.iml
 /kits/java/localrun/*.jar
 
-solution/weights
+solution/weights*
 solution/train
