@@ -230,7 +230,7 @@ def compute_start_mask(obs):
     ORE_WEIGHTS = np.array([1, 0.5, 0.33, 0.25])
     weigthed_ore_dist = np.sum(np.array(ore_distances) * ORE_WEIGHTS[:, np.newaxis, np.newaxis], axis=0)
 
-    ICE_PREFERENCE = 1
+    ICE_PREFERENCE = 3
 
     combined_resource_score = (weigthed_ice_dist * ICE_PREFERENCE + weigthed_ore_dist)
     combined_resource_score = (np.max(combined_resource_score) - combined_resource_score) * obs["board"]["valid_spawns_mask"]
