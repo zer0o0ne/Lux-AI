@@ -22,7 +22,7 @@ class MMCTS_Agent():
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         if self.first:
             estimator = Estimator(self.agent_cfg["estimator_n_iter"])
-            path = f'solution/train/{self.player}_{self.agent_cfg["game_n"]}'
+            path = f'solution/train/{self.agent_cfg["game_n"]}_{self.player}'
             n_iter = self.agent_cfg["MMCTS_n_iter"]
             player_number = 0 if self.player == "player_0" else 1
             T = self.agent_cfg["T"]
