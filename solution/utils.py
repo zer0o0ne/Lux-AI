@@ -59,6 +59,9 @@ def create_mask(state, type, subtype = None):
                     mask[player][0, unit.pos.x - 1 : unit.pos.x + 2, unit.pos.y - 1 : unit.pos.y + 2] = torch.ones(3, 3) * unit.cargo.metal
                 if subtype == "water":
                     mask[player][0, unit.pos.x - 1 : unit.pos.x + 2, unit.pos.y - 1 : unit.pos.y + 2] = torch.ones(3, 3) * unit.cargo.water
+            if subtype == "lichen":
+                for strain in state.teams[player].factory_strains:
+                    mask[player][0] += torch.tensor((state.board.lichen_strains == strain).astype(int), dtype = torch.float)
 
     if type == "units":
         for player in ["player_0", "player_1"]:
@@ -138,7 +141,9 @@ def invalid_actions_unit(player, unit_id, prepared_state, state):
     if state.units[player][unit_id].power < destruct_price: inv_act.append(5)
 
     dig_price = 5 if state.units[player][unit_id].unit_type.name == "LIGHT" else 60
-    if state.units[player][unit_id].power < dig_price or prepared_state["board"][0, map_n, pos_x, pos_y ] == 1: inv_act.append(4)
+    our_factory = prepared_state["board"][0, map_n, pos_x, pos_y ] == 1
+    our_lichen = prepared_state["board"][0, 10 + map_n, pos_x, pos_y ] == 1
+    if state.units[player][unit_id].power < dig_price or our_factory or our_lichen: inv_act.append(4)
 
     down_price = floor(1 + 0.05 * state.board.rubble[pos_x][min(pos_y + 1, 47)]) if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[pos_x][min(pos_y + 1, 47)])
     if state.units[player][unit_id].power < down_price: inv_act.append(2)

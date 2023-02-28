@@ -62,6 +62,7 @@ class Estimator(nn.Module):
         metal_0, metal_1 = create_mask(state, type = "factories", subtype = "metal")
         ore_0, ore_1 = create_mask(state, type = "factories", subtype = "ore")
         ice_0, ice_1 = create_mask(state, type = "factories", subtype = "ice")
+        lichen_0, lichen_1 = create_mask(state, type = "factories", subtype = "lichen")
         light_0, light_1 = create_mask(state, type = "units", subtype = "LIGHT")
         heavy_0, heavy_1 = create_mask(state, type = "units", subtype = "HEAVY")
         is_night, time = create_mask(state, type = "time")
@@ -70,7 +71,7 @@ class Estimator(nn.Module):
         ice = torch.tensor(state.board.ice, dtype = torch.float).unsqueeze(0)
         lichen = torch.tensor(state.board.lichen, dtype = torch.float).unsqueeze(0) / 100
         board = torch.cat([factories_0, factories_1, light_0, light_1, heavy_0, heavy_1, 
-                           rubble, ore, ice, lichen, is_night, time]).unsqueeze(0) # 12 feature cards 
+                           rubble, ore, ice, lichen, lichen_0, lichen_1, is_night, time]).unsqueeze(0) # 14 feature cards 
         
         useful = torch.cat([energy_0, energy_1, water_0, water_1, ore_0, ore_1, ice_0, ice_1, metal_0, metal_1])
 
@@ -216,12 +217,12 @@ class Estimator(nn.Module):
 class UltimateNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.enc = FourSequenceMHAttention(19, 26, 32, 2)
+        self.enc = FourSequenceMHAttention(31, 38, 32, 2)
         self.extractor = ResMHAttention(32, 32, 32, 2, 2)
         self.v_estimator = nn.Sequential(
-            nn.Conv2d(33, 64, 3, padding=1), nn.BatchNorm2d(64), nn.PReLU(), nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 64, 3, padding=1), nn.BatchNorm2d(64), nn.PReLU(), nn.MaxPool2d(2, 2),
-            nn.Flatten(), nn.Linear(1024, 1), nn.Tanh()
+            nn.Conv2d(45, 96, 3, padding=1), nn.BatchNorm2d(96), nn.PReLU(), nn.MaxPool2d(2, 2),
+            nn.Conv2d(96, 128, 3, padding=1), nn.BatchNorm2d(128), nn.PReLU(), nn.MaxPool2d(2, 2),
+            nn.Flatten(), nn.Linear(128 * 16, 1), nn.Tanh()
         )
 
         self.factory_output = nn.Sequential(nn.Linear(32, 32), nn.PReLU(), nn.Linear(32, 4))
@@ -229,9 +230,9 @@ class UltimateNet(nn.Module):
         
 
         self.spatial_extractor = nn.Sequential(
-            nn.Conv2d(12, 32, 3, padding=1), nn.BatchNorm2d(32), nn.PReLU(),
-            nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.PReLU(), 
-            nn.Conv2d(64, 12, 3, stride=3)
+            nn.Conv2d(14, 48, 3, padding=1), nn.BatchNorm2d(48), nn.PReLU(),
+            nn.Conv2d(48, 96, 3, padding=1), nn.BatchNorm2d(96), nn.PReLU(), 
+            nn.Conv2d(96, 24, 3, stride=3)
         )
 
     def forward(self, state):
