@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
+from time import time
+from copy import deepcopy
 
 from utils import *
 
@@ -41,16 +43,18 @@ class Estimator(nn.Module):
         self.n_iter = n_iter
 
     def predict(self, state, mode, player_number):
-        prepared_state = self._prepare_state(state)
-        if mode == "fast":
+        if mode == "fast" or mode == "full":
+            prepared_state = self._prepare_state(state)
             self.net.eval()
             with torch.no_grad():
                 predictions, v = self.net(prepared_state)
-                raw_actions, env_actions, P, v = self._prepare_prediction(predictions, v, prepared_state, state, player_number)
-            return raw_actions, env_actions, P, v, prepared_state
+            if mode == "full":
+                raw_actions, env_actions, P, v = self._prepare_prediction(deepcopy(predictions), v, prepared_state, state, player_number)
+                return raw_actions, env_actions, P, v, prepared_state, predictions, deepcopy(self.ids)
+            return predictions, deepcopy(self.ids), v * (1 - 2 * player_number)
         elif mode == "train":
             self.net.train()
-            predictions, v = self.net(prepared_state) 
+            predictions, v = self.net(state) 
             return predictions, v        
 
     def _prepare_state(self, state):
@@ -121,9 +125,6 @@ class Estimator(nn.Module):
                 factories_pos.append([unit.pos.x // 3, unit.pos.y // 3])
                 factories_per_team.append(torch.tensor([[power_abs, ice_abs, ore_abs, water_abs, metal_abs,
                                                      pos_x, pos_y]], dtype = torch.float)) # 7 features
-            if len(factories_per_team) == 0:
-                print("Error in filling factories")
-                breakpoint()
             prepared_state[team]["factories"] = [torch.cat(factories_per_team).unsqueeze(0), factories_pos]
 
         return prepared_state
@@ -220,8 +221,8 @@ class UltimateNet(nn.Module):
         self.enc = FourSequenceMHAttention(31, 38, 32, 2)
         self.extractor = ResMHAttention(32, 32, 32, 2, 2)
         self.v_estimator = nn.Sequential(
-            nn.Conv2d(45, 96, 3, padding=1), nn.BatchNorm2d(96), nn.PReLU(), nn.MaxPool2d(2, 2),
-            nn.Conv2d(96, 128, 3, padding=1), nn.BatchNorm2d(128), nn.PReLU(), nn.MaxPool2d(2, 2),
+            nn.Conv2d(66, 96, 3, padding=1), nn.PReLU(), nn.MaxPool2d(2, 2),
+            nn.Conv2d(96, 128, 3, padding=1), nn.PReLU(), nn.MaxPool2d(2, 2),
             nn.Flatten(), nn.Linear(128 * 16, 1), nn.Tanh()
         )
 
@@ -230,28 +231,36 @@ class UltimateNet(nn.Module):
         
 
         self.spatial_extractor = nn.Sequential(
-            nn.Conv2d(14, 48, 3, padding=1), nn.BatchNorm2d(48), nn.PReLU(),
-            nn.Conv2d(48, 96, 3, padding=1), nn.BatchNorm2d(96), nn.PReLU(), 
+            nn.Conv2d(14, 48, 3, padding=1), nn.PReLU(),
+            nn.Conv2d(48, 96, 3, padding=1), nn.PReLU(), 
             nn.Conv2d(96, 24, 3, stride=3)
         )
 
     def forward(self, state):
         spatial_map = self.spatial_extractor(state["board"])
-        v_map = torch.cat([torch.zeros(spatial_map.shape[0], 21, 16, 16), spatial_map], 1)
+        v_map = spatial_map.clone()
         modified_state = {"player_0": {"factories": [], "units": []}, "player_1": {"factories": [], "units": []}}
         for team in ["player_0", "player_1"]:
+            global_mask_units, global_mask_factories = torch.zeros(v_map.shape[0], 16, 16, 14), torch.zeros(v_map.shape[0], 16, 16, 7)
             for unit_type in state[team]:
                 if len(state[team][unit_type]) == 0:
                     modified_state[team][unit_type] = {}
                     continue
                 for i in range(state[team][unit_type][0].shape[1]):
                     pos_x, pos_y = state[team][unit_type][1][i][0], state[team][unit_type][1][i][1]
-                    modified_state[team][unit_type].append(torch.cat([state[team][unit_type][0][:, i], spatial_map[:, :, pos_x, pos_y]], 1).unsqueeze(1))
+                    modified_state[team][unit_type].append(torch.cat([state[team][unit_type][0][:, i].clone(), spatial_map[:, :, pos_x, pos_y].clone()], 1).unsqueeze(1))
                     if unit_type == "factories":
-                        v_map[:, :7, pos_x, pos_y] = state[team][unit_type][0][:, i]
+                        mask = torch.zeros(v_map.shape[0], 16, 16, 7)
+                        mask[0, pos_x, pos_y] = 1
+                        mask *= state[team][unit_type][0][:, i].clone()
+                        global_mask_factories += mask
                     if unit_type == "units":
-                        v_map[:, 7:21, pos_x, pos_y] = state[team][unit_type][0][:, i]
+                        mask = torch.zeros(v_map.shape[0], 16, 16, 14)
+                        mask[0, pos_x, pos_y] = 1
+                        mask *= state[team][unit_type][0][:, i].clone()
+                        global_mask_units += mask
                 modified_state[team][unit_type] = torch.cat(modified_state[team][unit_type], 1)
+            v_map = torch.cat([global_mask_units.transpose(2, 3).transpose(1, 2), global_mask_factories.transpose(2, 3).transpose(1, 2), v_map], dim = 1)
 
         encoded_sequences, lengths = self.enc(modified_state)
         extracted_sequences = self.extractor(encoded_sequences, lengths)
@@ -317,12 +326,12 @@ class ResMHAttention(nn.Module):
             i = 0
             state = {"player_0": {}, "player_1": {}}
             for player in ["player_0", "player_1"]:
-                state[player]["factories"] = seq[:, i : i + lengths[player]["factories"]]
+                state[player]["factories"] = seq[:, i : i + lengths[player]["factories"]].clone()
                 i += lengths[player]["factories"]
                 if lengths[player]["units"] == 0:
                     state[player]["units"] = {}
                     continue
-                state[player]["units"] = seq[:, i : i + lengths[player]["units"]]
+                state[player]["units"] = seq[:, i : i + lengths[player]["units"]].clone()
                 i += lengths[player]["units"]
 
             seq_new, lengths = self.attns[step](state)
@@ -332,12 +341,12 @@ class ResMHAttention(nn.Module):
         i = 0
         state = {"player_0": {}, "player_1": {}}
         for player in ["player_0", "player_1"]:
-            state[player]["factories"] = seq[:, i : i + lengths[player]["factories"]]
+            state[player]["factories"] = seq[:, i : i + lengths[player]["factories"]].clone()
             i += lengths[player]["factories"]
             if lengths[player]["units"] == 0:
                     state[player]["units"] = {}
                     continue
-            state[player]["units"] = seq[:, i : i + lengths[player]["units"]]
+            state[player]["units"] = seq[:, i : i + lengths[player]["units"]].clone()
             i += lengths[player]["units"]
 
         return state

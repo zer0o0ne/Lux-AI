@@ -15,7 +15,7 @@ agent_cfg = {
             "game_n": 1,
             "T": 1,
             "need_save": False,
-            "weights_path": 'solution/weights'
+            "weights_path": 'solution/weights/32_weights_2'
         }
 
 def agent_fn(observation, configurations):

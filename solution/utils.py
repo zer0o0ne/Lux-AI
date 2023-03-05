@@ -36,6 +36,7 @@ def mean_across_dicts(dicts, N):
         units_0 += dict["player_0"]["units"] * n
         factories_1 += dict["player_1"]["factories"] * n
         units_1 += dict["player_1"]["units"] * n
+
     return {"player_0": {"factories": factories_0 / N, "units": units_0 / N}, "player_1": {"factories": factories_1 / N, "units": units_1 / N}}
 
 def state_from_obs(state_, obs, env_cfg, step):
@@ -137,24 +138,24 @@ def invalid_actions_unit(player, unit_id, prepared_state, state):
     if state.units[player][unit_id].cargo.metal == 0: inv_act.append(14)
     if state.units[player][unit_id].power == 0: inv_act.append(15)
 
-    destruct_price = 10 if state.units[player][unit_id].unit_type.name == "LIGHT" else 100
+    destruct_price = 11 if state.units[player][unit_id].unit_type.name == "LIGHT" else 110
     if state.units[player][unit_id].power < destruct_price: inv_act.append(5)
 
-    dig_price = 5 if state.units[player][unit_id].unit_type.name == "LIGHT" else 60
+    dig_price = 6 if state.units[player][unit_id].unit_type.name == "LIGHT" else 70
     our_factory = prepared_state["board"][0, map_n, pos_x, pos_y ] == 1
     our_lichen = prepared_state["board"][0, 10 + map_n, pos_x, pos_y ] == 1
     if state.units[player][unit_id].power < dig_price or our_factory or our_lichen: inv_act.append(4)
 
-    down_price = floor(1 + 0.05 * state.board.rubble[pos_x][min(pos_y + 1, 47)]) if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[pos_x][min(pos_y + 1, 47)])
+    down_price = floor(1 + 0.05 * state.board.rubble[pos_x][min(pos_y + 1, 47)]) + 1 if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[pos_x][min(pos_y + 1, 47)]) + 10
     if state.units[player][unit_id].power < down_price: inv_act.append(2)
 
-    up_price = floor(1 + 0.05 * state.board.rubble[pos_x][max(pos_y - 1, 0)]) if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[pos_x][max(pos_y - 1, 0)])
+    up_price = floor(1 + 0.05 * state.board.rubble[pos_x][max(pos_y - 1, 0)]) + 1 if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[pos_x][max(pos_y - 1, 0)]) + 10
     if state.units[player][unit_id].power < up_price: inv_act.append(0)
 
-    right_price = floor(1 + 0.05 * state.board.rubble[min(pos_x + 1, 47)][pos_y]) if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[min(pos_x + 1, 47)][pos_y])
+    right_price = floor(1 + 0.05 * state.board.rubble[min(pos_x + 1, 47)][pos_y]) + 1 if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[min(pos_x + 1, 47)][pos_y]) + 10
     if state.units[player][unit_id].power < right_price: inv_act.append(1)
 
-    left_price = floor(1 + 0.05 * state.board.rubble[max(pos_x - 1, 0)][pos_y]) if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[max(pos_x - 1, 0)][pos_y])
+    left_price = floor(1 + 0.05 * state.board.rubble[max(pos_x - 1, 0)][pos_y]) + 1 if state.units[player][unit_id].unit_type.name == "LIGHT" else floor(5 + state.board.rubble[max(pos_x - 1, 0)][pos_y]) + 10
     if state.units[player][unit_id].power < left_price: inv_act.append(3)
 
     return inv_act
@@ -168,7 +169,7 @@ def compute_direction(prepared_state_board, map_n, pos_x, pos_y):
 
 def compute_raw_action(best_ids, dim_action_space):
     raw_action = []
-    for i in best_ids:
+    for i in best_ids[0]:
         action = torch.zeros(1, dim_action_space)
         action[0, i] = 1
         raw_action.append(action)
@@ -317,3 +318,18 @@ def compare_action_and_array(action, array):
         if array[0] != 4: return False
 
     return True
+
+def to_tensor(dict_, device, type):
+    for key in dict_:
+        if isinstance(dict_[key], list):
+            if (key == "factories" or key == "units") and type == "state":
+                if len(dict_[key]) > 0:
+                    dict_[key][0] = torch.tensor(dict_[key][0], dtype = torch.float).to(device)
+            else:
+                dict_[key] = torch.tensor(dict_[key], dtype = torch.float).to(device)
+        if isinstance(dict_[key], dict):
+            dict_[key] = to_tensor(dict_[key], device, type)
+        if isinstance(dict_[key], float) or isinstance(dict_[key], int):
+            dict_[key] = torch.tensor(dict_[key], dtype = torch.float).to(device)
+            
+    return dict_

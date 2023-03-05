@@ -2,14 +2,15 @@ import sys
 from time import time
 sys.path.append("kits/python/")
 import json
+from tqdm.auto import tqdm
 
-from luxai_s2.env import LuxAI_S2
+from kits.python.luxai_s2.env import LuxAI_S2
 
 sys.path.append("kits/python/solution")
 
 from agent import MMCTS_Agent
 
-def play(agent_cfg_1 = None, agent_cfg_2 = None):
+def play(n_games, n_rounds = 1000, agent_cfg_1 = None, agent_cfg_2 = None):
     if agent_cfg_1 is None:
         agent_cfg_1 = {
             "estimator_n_iter": 16,
@@ -30,9 +31,7 @@ def play(agent_cfg_1 = None, agent_cfg_2 = None):
             "weights_path": 'solution/weights_2'
         }
 
-    n_games = 3
-    n_rounds = 100
-    for n in range(n_games):
+    for n in tqdm(range(n_games), desc = "games in one cycle"):
         env = LuxAI_S2()
         obs = env.reset()["player_0"]
         # env.env_cfg.verbose = 0
@@ -63,13 +62,16 @@ def play(agent_cfg_1 = None, agent_cfg_2 = None):
 
         path_0 = agent_1.MCTS.path + "/player_0_reward.json"
         path_1 = agent_2.MCTS.path + "/player_1_reward.json"
+        path_2 = agent_2.MCTS.path + "/player_0_reward.json"
+        path_3 = agent_1.MCTS.path + "/player_1_reward.json"
+
         with open(path_0, 'w') as fp:
             if rewards["player_0"] > rewards["player_1"]:
                 rew = 1
             elif rewards["player_0"] < rewards["player_1"]:
                 rew = -1
             else:
-                rew = 0
+                rew = -0.5
             json.dump(rew, fp)
 
         with open(path_1, 'w') as fp:
@@ -78,7 +80,25 @@ def play(agent_cfg_1 = None, agent_cfg_2 = None):
             elif rewards["player_0"] > rewards["player_1"]:
                 rew = -1
             else:
-                rew = 0
+                rew = -0.5
+            json.dump(rew, fp)
+
+        with open(path_2, 'w') as fp:
+            if rewards["player_0"] > rewards["player_1"]:
+                rew = 1
+            elif rewards["player_0"] < rewards["player_1"]:
+                rew = -1
+            else:
+                rew = -0.5
+            json.dump(rew, fp)
+
+        with open(path_3, 'w') as fp:
+            if rewards["player_0"] < rewards["player_1"]:
+                rew = 1
+            elif rewards["player_0"] > rewards["player_1"]:
+                rew = -1
+            else:
+                rew = -0.5
             json.dump(rew, fp)
 
         agent_cfg_1["game_n"] += 1

@@ -6,6 +6,8 @@ from utils import *
 from copy import deepcopy
 from time import time
 
+import torch.nn.functional as F
+
 # TODO compare action queue with action for every robot
 class MMCTS:
     def __init__(self, initial_state, simulator, estimator, path, n_iter, player_number, env_cfg, T = 1, need_save = False):
@@ -33,16 +35,21 @@ class MMCTS:
                 probabilities_for_train = mean_across_dicts(list(zip(actions, numbers)), sum)
                 return distribution, probabilities_for_train
 
-            def get_leaf(self):
-                if len(self.children) == 0: return self
+            def get_leaf(self, n = 1):
+                if len(self.children) == 0: return self, -1
                 scores = [child.Q + child.u for child in self.children]
-                return self.children[np.argmax(scores)].get_leaf()
+                leaf, score = self.children[np.argmax(scores)].get_leaf(n + 1)
+                if score < 0:
+                    score = n
+                return leaf, score
 
-            def inspect(self, raw_actions, env_actions, P, v, prepared_state):
+            def inspect(self, raw_actions, env_actions, P, v, prepared_state, predictions, ids):
                 assert len(P) == len(env_actions)
 
-                # Need to feature train 
+                # Need to future train 
                 self.prepared_state = prepared_state
+                self.predictions = predictions
+                self.ids, self.v = ids, v
 
                 for i in range(len(P)):
                     self.children.append(Node(P[i], self, env_actions[i], raw_actions[i], T = self.T))
@@ -57,6 +64,19 @@ class MMCTS:
                     return self.children[best_child].action[player][unit_id] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
                 else:
                     return [np.array([5, 0, 0, 0, 0, 1])] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
+                
+            def update_states(self, simulator):
+                for child in self.children:
+                    for player in child.action:
+                        for unit_id in child.action[player]:
+                            if unit_id not in self.state.factories[player] and unit_id not in self.state.units[player] and unit_id in child.action:
+                                child.action.pop(unit_id)
+
+                    if child.state is not None:
+                        simulator.set_state(deepcopy(self.state))
+                        simulator.step(child.action)
+                        child.state = deepcopy(simulator.get_state())
+                        child.update_states(simulator)
 
         self.simulator = simulator
         self.estimator = estimator
@@ -64,25 +84,28 @@ class MMCTS:
         self.path, self.n_iter, self.n = path, n_iter, 0
         self.root = Node(1, None, None, None, initial_state, T)
         self.env_cfg, self.player_number = env_cfg, player_number
-        makedirs(path, exist_ok=True)
+        if need_save:
+            makedirs(path, exist_ok=True)
 
     def _simulation_step(self): 
-        current_node = self.root.get_leaf()
+        current_node, depth = self.root.get_leaf()
+        if depth > 25:
+            return False
         if current_node.state is None:
             self.simulator.set_state(deepcopy(current_node.parent.state))
             _, _, dones, _ = self.simulator.step(current_node.action)
             if dones["player_0"] or dones["player_1"]:
                 return True
             current_node.state = deepcopy(self.simulator.get_state())
-        raw_actions, env_actions, P, v, prepared_state = self.estimator.predict(current_node.state, mode = "fast", player_number = self.player_number)
-        current_node.inspect(raw_actions, env_actions, P, v, prepared_state)
+        raw_actions, env_actions, P, v, prepared_state, predictions, ids = self.estimator.predict(deepcopy(current_node.state), mode = "full", player_number = self.player_number)
+        current_node.inspect(raw_actions, env_actions, P, v, prepared_state, predictions, ids)
         return False
 
     def step(self, step, obs):
+        time_ = time()
         state = state_from_obs(self.simulator.get_state(), obs, self.env_cfg, step)
         self._check_state(state)
-        
-        time_ = time()
+
         for i in range(self.n_iter):
             if time() - time_ < 2.85:
                 if self._simulation_step():
@@ -107,14 +130,28 @@ class MMCTS:
         for current_node in self.root.children:
             if current_node.state is None:
                 continue
-                # Not necessary
-                # self.simulator.set_state(current_node.parent.state)
-                # self.simulator.step(current_node.action)
-                # current_node.state = self.simulator.get_state()
             if state == current_node.state:
                 self.root = current_node
                 self.root.make_root()
+                # self.root.state = deepcopy(state)
                 return True
+                
+        # best_diff = 0.01
+        # best_root = None
+        # for current_node in self.root.children:
+        #     if current_node.state is None:
+        #         continue
+        #     diff = self._difference(state, current_node.predictions, current_node.ids, current_node.v)
+        #     if diff < best_diff:
+        #         best_root = current_node
+        #         best_diff = diff
+        # if best_root is not None:
+        #     self.root = best_root
+        #     self.root.make_root()
+        #     self.root.state = deepcopy(state)
+        #     self.root.update_states(self.simulator)
+        #     return True
+        
         self.root.state = state
         self.root.children.clear()
         return False
@@ -135,12 +172,27 @@ class MMCTS:
             else:
                 predicted_action[unit_id] = self.root._compute_action_queue(unit_id, player)
                 continue
-
+        
+        candidates = list(predicted_action.keys())
+        for unit_id in candidates:
+            if unit_id not in actual_queue_state and "unit" in unit_id:
+                 predicted_action.pop(unit_id)
         return predicted_action
 
-
-
-
+    def _difference(self, state, predictions, ids, v):
+        actual_predictions, actual_ids, actual_v = self.estimator.predict(state, mode = "fast", player_number = self.player_number)
+        diff = abs(v - actual_v)
+        if not isequal(ids, actual_ids): 
+            return 1
+        for player, prediction in actual_predictions.items():
+            for unit_type in ["factories", "units"]:
+                if unit_type not in prediction or unit_type not in predictions[player]: return 1
+                if not type(prediction[unit_type]) == type(predictions[player][unit_type]): return 1
+                if len(prediction[unit_type]) == 0: continue
+                if not prediction[unit_type].shape == predictions[player][unit_type].shape: return 1
+                diff += torch.abs(F.softmax(prediction[unit_type], -1) - F.softmax(predictions[player][unit_type], -1)).mean(dim = 1).sum().item() / 4
+        
+        return diff
         
 
         
