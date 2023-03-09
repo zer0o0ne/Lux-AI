@@ -26,7 +26,7 @@ def value_policy_loss(predictions, v, vs, policies):
 class Trainer:
     def __init__(self, weights_path, model, player, dataset = None, weight_decay = 1e-5, n_games = 200):
         if dataset is None:
-            dataset = DatasetBuilder(player, n_games=n_games * 2)
+            dataset = DatasetBuilder(player, n_games=n_games)
         self.dataset = dataset
         self.weights_path = weights_path
         self.model = model

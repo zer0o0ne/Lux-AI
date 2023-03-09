@@ -25,8 +25,6 @@ class DatasetBuilder(Dataset):
 
         self.prepared_states, self.vs, self.policies = [], [], []
         for game in games:
-            if player not in game:
-                continue
             with open(f'solution/train/{game}/player_0_reward.json', 'r') as f:
                 player_0_reward = torch.tensor(json.load(f), dtype = torch.float).to(device)
             with open(f'solution/train/{game}/player_1_reward.json', 'r') as f:
