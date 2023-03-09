@@ -100,10 +100,12 @@ class Estimator(nn.Module):
                 water_relative = unit.cargo.water / 100 if is_light == 1 else unit.cargo.water / 1000
                 metal_relative = unit.cargo.metal / 100 if is_light == 1 else unit.cargo.metal / 1000
 
+                pos_x, pos_y = unit.pos.x / 47, unit.pos.y / 47
+
                 units_pos.append([unit.pos.x, unit.pos.y])
                 units_per_team.append(torch.tensor([[power_abs, ice_abs, ore_abs, water_abs, metal_abs,
                                                      is_heavy, is_light, power_relative, ice_relative, 
-                                                     ore_relative, water_relative, metal_relative]], dtype = torch.float)) # 12 features
+                                                     ore_relative, water_relative, metal_relative, pos_x, pos_y]], dtype = torch.float)) # 14 features
             prepared_state[team]["units"] = [torch.cat(units_per_team).unsqueeze(0), units_pos] if len(units_per_team) > 0 else []
 
             factories_per_team, factories_pos = [], []
@@ -116,8 +118,10 @@ class Estimator(nn.Module):
                 water_abs = unit.cargo.water / 300
                 metal_abs = unit.cargo.metal / 300
 
+                pos_x, pos_y = unit.pos.x / 47, unit.pos.y / 47
+
                 factories_pos.append([unit.pos.x, unit.pos.y])
-                factories_per_team.append(torch.tensor([[power_abs, ice_abs, ore_abs, water_abs, metal_abs]], dtype = torch.float)) # 5 features
+                factories_per_team.append(torch.tensor([[power_abs, ice_abs, ore_abs, water_abs, metal_abs, pos_x, pos_y]], dtype = torch.float)) # 7 features
             prepared_state[team]["factories"] = [torch.cat(factories_per_team).unsqueeze(0), factories_pos]
 
         return prepared_state
@@ -220,10 +224,10 @@ class Estimator(nn.Module):
 class UltimateNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.enc = FourSequenceMHAttention(29, 36, 32, 2)
+        self.enc = FourSequenceMHAttention(31, 38, 32, 2)
         self.extractor = ResMHAttention(32, 32, 32, 2, 2)
         self.v_estimator = nn.Sequential(
-            nn.Conv2d(58, 64, 3, padding=1), nn.PReLU(), nn.MaxPool2d(3, 3),
+            nn.Conv2d(66, 64, 3, padding=1), nn.PReLU(), nn.MaxPool2d(3, 3),
             nn.Conv2d(64, 96, 3, padding=1), nn.PReLU(), nn.MaxPool2d(2, 2),
             nn.Conv2d(96, 128, 3, padding=1), nn.PReLU(), nn.MaxPool2d(2, 2),
             nn.Flatten(), nn.Linear(128 * 16, 1), nn.Tanh()
@@ -244,7 +248,7 @@ class UltimateNet(nn.Module):
         v_map = spatial_map.clone()
         modified_state = {"player_0": {"factories": [], "units": []}, "player_1": {"factories": [], "units": []}}
         for team in ["player_0", "player_1"]:
-            global_mask_units, global_mask_factories = torch.zeros(v_map.shape[0], 48, 48, 12), torch.zeros(v_map.shape[0], 48, 48, 5)
+            global_mask_units, global_mask_factories = torch.zeros(v_map.shape[0], 48, 48, 14), torch.zeros(v_map.shape[0], 48, 48, 7)
             for unit_type in state[team]:
                 if len(state[team][unit_type]) == 0:
                     modified_state[team][unit_type] = {}
@@ -253,12 +257,12 @@ class UltimateNet(nn.Module):
                     pos_x, pos_y = state[team][unit_type][1][i][0], state[team][unit_type][1][i][1]
                     modified_state[team][unit_type].append(torch.cat([state[team][unit_type][0][:, i].clone(), spatial_map[:, :, pos_x, pos_y].clone()], 1).unsqueeze(1))
                     if unit_type == "factories":
-                        mask = torch.zeros(v_map.shape[0], 48, 48, 5)
+                        mask = torch.zeros(v_map.shape[0], 48, 48, 7)
                         mask[0, pos_x, pos_y] = 1
                         mask *= state[team][unit_type][0][:, i].clone()
                         global_mask_factories += mask
                     if unit_type == "units":
-                        mask = torch.zeros(v_map.shape[0], 48, 48, 12)
+                        mask = torch.zeros(v_map.shape[0], 48, 48, 14)
                         mask[0, pos_x, pos_y] = 1
                         mask *= state[team][unit_type][0][:, i].clone()
                         global_mask_units += mask
