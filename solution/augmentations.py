@@ -12,9 +12,9 @@ def ninety_degrees(state, distribution):
             if len(units_state) > 0:
                 for i in range(units_state[0].shape[1]):
                     units_state[1][i] = [15 - units_state[1][i][1], units_state[1][i][0]]
-                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -1], units_state[0][0, i, -2]
+                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -1].item(), units_state[0][0, i, -2].item()
                     if unit_type == "units":
-                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3], distribution[player][unit_type][i, 0]
+                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 1].clone(), distribution[player][unit_type][i, 2].clone(), distribution[player][unit_type][i, 3].clone(), distribution[player][unit_type][i, 0].clone()
     return state, distribution
 
 
@@ -26,9 +26,9 @@ def hundred_eighteen_degrees(state, distribution):
             if len(units_state) > 0:
                 for i in range(units_state[0].shape[1]):
                     units_state[1][i] = [15 -units_state[1][i][1], 15 - units_state[1][i][0]]
-                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -1], 2 - units_state[0][0, i, -2]
+                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -1].item(), 2 - units_state[0][0, i, -2].item()
                     if unit_type == "units":
-                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1]
+                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 2].clone(), distribution[player][unit_type][i, 1].clone(), distribution[player][unit_type][i, 0].clone(), distribution[player][unit_type][i, 1].clone()
     return state, distribution
 
 def two_hundred_seventeen_degrees(state, distribution):
@@ -39,9 +39,9 @@ def two_hundred_seventeen_degrees(state, distribution):
             if len(units_state) > 0:
                 for i in range(units_state[0].shape[1]):
                     units_state[1][i] = [units_state[1][i][1], 15 - units_state[1][i][0]]
-                    units_state[0][0, i, -2], units_state[0][0, i, -1] = units_state[0][0, i, -1], 2 - units_state[0][0, i, -2]
+                    units_state[0][0, i, -2], units_state[0][0, i, -1] = units_state[0][0, i, -1].item(), 2 - units_state[0][0, i, -2].item()
                     if unit_type == "units":
-                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 3], distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2]
+                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 3].clone(), distribution[player][unit_type][i, 0].clone(), distribution[player][unit_type][i, 1].clone(), distribution[player][unit_type][i, 2].clone()
     return state, distribution
 
 def side_diagonal_flip(state, distribution):
@@ -53,9 +53,9 @@ def side_diagonal_flip(state, distribution):
             if len(units_state) > 0:
                 for i in range(units_state[0].shape[1]):
                     units_state[1][i] = [15 - units_state[1][i][1], 15 - units_state[1][i][0]]
-                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -1], 2 - units_state[0][0, i, -2]
+                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -1].item(), 2 - units_state[0][0, i, -2].item()
                     if unit_type == "units":
-                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 3], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 0]
+                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 3].clone(), distribution[player][unit_type][i, 2].clone(), distribution[player][unit_type][i, 1].clone(), distribution[player][unit_type][i, 0].clone()
     return state, distribution
 
 def main_diagonal_flip(state, distribution):
@@ -67,9 +67,9 @@ def main_diagonal_flip(state, distribution):
             if len(units_state) > 0:
                 for i in range(units_state[0].shape[1]):
                     units_state[1][i] = [units_state[1][i][1], units_state[1][i][0]]
-                    units_state[0][0, i, -2], units_state[0][0, i, -1] = units_state[0][0, i, -1], units_state[0][0, i, -2]
+                    units_state[0][0, i, -2], units_state[0][0, i, -1] = units_state[0][0, i, -1].item(), units_state[0][0, i, -2].item()
                     if unit_type == "units":
-                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 3], distribution[player][unit_type][i, 2]
+                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 1].clone(), distribution[player][unit_type][i, 0].clone(), distribution[player][unit_type][i, 3].clone(), distribution[player][unit_type][i, 2].clone()
     return state, distribution
 
 def vertical_flip(state, distribution):
@@ -80,9 +80,9 @@ def vertical_flip(state, distribution):
             if len(units_state) > 0:
                 for i in range(units_state[0].shape[1]):
                     units_state[1][i] = [units_state[1][i][0], 15 - units_state[1][i][1]]
-                    units_state[0][0, i, -2], units_state[0][0, i, -1] = units_state[0][0, i, -2], 2 - units_state[0][0, i, -1]
+                    units_state[0][0, i, -2], units_state[0][0, i, -1] = units_state[0][0, i, -2].item(), 2 - units_state[0][0, i, -1].item()
                     if unit_type == "units":
-                        distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 3], distribution[player][unit_type][i, 1]
+                        distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 3].clone(), distribution[player][unit_type][i, 1].clone()
     return state, distribution
 
 def horizontal_flip(state, distribution):
@@ -93,7 +93,7 @@ def horizontal_flip(state, distribution):
             if len(units_state) > 0:
                 for i in range(units_state[0].shape[1]):
                     units_state[1][i] = [15 - units_state[1][i][0], units_state[1][i][1]]
-                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -2], units_state[0][0, i, -1]
+                    units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -2].item(), units_state[0][0, i, -1].item()
                     if unit_type == "units":
-                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 2] = distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 0]
+                        distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 2] = distribution[player][unit_type][i, 2].clone(), distribution[player][unit_type][i, 0].clone()
     return state, distribution

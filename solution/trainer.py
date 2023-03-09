@@ -2,6 +2,16 @@ import torch
 from dataset import DatasetBuilder
 from tqdm.auto import tqdm
 
+def value_weight_policy_loss(predictions, v, vs, policies):
+    v_loss, policy_loss = 0, 0
+    v_loss += (v - vs["player_0"]) ** 2 + (v + vs["player_1"]) ** 2
+    for player, prediction in predictions.items():
+        for unit_type, policy in prediction.items():
+            real_policy = policies[player][unit_type]
+            if not isinstance(policy, dict):
+                policy_loss += vs[player] * (real_policy * torch.log(policy + 1e-9)).sum()
+    return v_loss - policy_loss
+
 def value_policy_loss(predictions, v, vs, policies):
     v_loss, policy_loss = 0, 0
     v_loss += (v - vs["player_0"]) ** 2 + (v + vs["player_1"]) ** 2
@@ -39,9 +49,9 @@ class Trainer:
                     loss = 0
 
                 predictions, v = self.model.predict(state, mode = "train", player_number = None)
-                loss += value_policy_loss(predictions, v, vs, policies)
+                loss += value_weight_policy_loss(predictions, v, vs, policies)
                 batch += 1
 
         number = self.weights_path.split("_")[-1]
-        path = f'solution/weights/{cycle + 1}_weights_' + number
+        path = f'solution/weights/{cycle}_weights_' + number
         torch.save(self.model.state_dict(), path)

@@ -100,13 +100,10 @@ class Estimator(nn.Module):
                 water_relative = unit.cargo.water / 100 if is_light == 1 else unit.cargo.water / 1000
                 metal_relative = unit.cargo.metal / 100 if is_light == 1 else unit.cargo.metal / 1000
 
-                pos_x = unit.pos.x % 3
-                pos_y = unit.pos.y % 3
-
-                units_pos.append([unit.pos.x // 3, unit.pos.y // 3])
+                units_pos.append([unit.pos.x, unit.pos.y])
                 units_per_team.append(torch.tensor([[power_abs, ice_abs, ore_abs, water_abs, metal_abs,
                                                      is_heavy, is_light, power_relative, ice_relative, 
-                                                     ore_relative, water_relative, metal_relative, pos_x, pos_y]], dtype = torch.float)) # 14 features
+                                                     ore_relative, water_relative, metal_relative]], dtype = torch.float)) # 12 features
             prepared_state[team]["units"] = [torch.cat(units_per_team).unsqueeze(0), units_pos] if len(units_per_team) > 0 else []
 
             factories_per_team, factories_pos = [], []
@@ -119,18 +116,20 @@ class Estimator(nn.Module):
                 water_abs = unit.cargo.water / 300
                 metal_abs = unit.cargo.metal / 300
 
-                pos_x = unit.pos.x % 3
-                pos_y = unit.pos.y % 3
-
-                factories_pos.append([unit.pos.x // 3, unit.pos.y // 3])
-                factories_per_team.append(torch.tensor([[power_abs, ice_abs, ore_abs, water_abs, metal_abs,
-                                                     pos_x, pos_y]], dtype = torch.float)) # 7 features
+                factories_pos.append([unit.pos.x, unit.pos.y])
+                factories_per_team.append(torch.tensor([[power_abs, ice_abs, ore_abs, water_abs, metal_abs]], dtype = torch.float)) # 5 features
             prepared_state[team]["factories"] = [torch.cat(factories_per_team).unsqueeze(0), factories_pos]
 
         return prepared_state
 
     def _prepare_prediction(self, predictions, v, prepared_state, state, player_number):
         v *= 1 - 2 * player_number # Compute v for actual player
+
+        for player, prediction in predictions.items():
+            prediction["factories"] = torch.log(prediction["factories"] + 1e-9)
+            if isinstance(prediction["units"], torch.Tensor):
+               prediction["units"] = torch.log(prediction["units"] + 1e-9)
+
         for player, prediction in predictions.items():
             for i, unit_id in enumerate(self.ids[player]["units"]):
                 prediction["units"][0, i][invalid_actions_unit(player, unit_id, prepared_state, state)] = -torch.inf
@@ -209,7 +208,10 @@ class Estimator(nn.Module):
             best = compute_best(best, predictions)
             if best is None: 
                 break
-
+        
+        P = np.array(P)
+        P[P > 30] = 30
+        P[P < -30] = -30
         return raw_actions, env_actions, list(np.exp(P) / sum(np.exp(P))), v.item()
 
 
@@ -218,22 +220,23 @@ class Estimator(nn.Module):
 class UltimateNet(nn.Module):
     def __init__(self):
         super().__init__()
-        self.enc = FourSequenceMHAttention(31, 38, 32, 2)
+        self.enc = FourSequenceMHAttention(29, 36, 32, 2)
         self.extractor = ResMHAttention(32, 32, 32, 2, 2)
         self.v_estimator = nn.Sequential(
-            nn.Conv2d(66, 96, 3, padding=1), nn.PReLU(), nn.MaxPool2d(2, 2),
+            nn.Conv2d(58, 64, 3, padding=1), nn.PReLU(), nn.MaxPool2d(3, 3),
+            nn.Conv2d(64, 96, 3, padding=1), nn.PReLU(), nn.MaxPool2d(2, 2),
             nn.Conv2d(96, 128, 3, padding=1), nn.PReLU(), nn.MaxPool2d(2, 2),
             nn.Flatten(), nn.Linear(128 * 16, 1), nn.Tanh()
         )
 
-        self.factory_output = nn.Sequential(nn.Linear(32, 32), nn.PReLU(), nn.Linear(32, 4))
-        self.robot_output = nn.Sequential(nn.Linear(32, 32), nn.PReLU(), nn.Linear(32, 17))
+        self.factory_output = nn.Sequential(nn.Linear(32, 32), nn.PReLU(), nn.Linear(32, 4), nn.Softmax(-1))
+        self.robot_output = nn.Sequential(nn.Linear(32, 32), nn.PReLU(), nn.Linear(32, 17), nn.Softmax(-1))
         
 
         self.spatial_extractor = nn.Sequential(
-            nn.Conv2d(14, 48, 3, padding=1), nn.PReLU(),
-            nn.Conv2d(48, 96, 3, padding=1), nn.PReLU(), 
-            nn.Conv2d(96, 24, 3, stride=3)
+            nn.Conv2d(14, 64, 3, padding=1), nn.PReLU(),
+            nn.Conv2d(64, 64, 3, padding=1), nn.PReLU(),
+            nn.Conv2d(64, 24, 3, padding=1)
         )
 
     def forward(self, state):
@@ -241,7 +244,7 @@ class UltimateNet(nn.Module):
         v_map = spatial_map.clone()
         modified_state = {"player_0": {"factories": [], "units": []}, "player_1": {"factories": [], "units": []}}
         for team in ["player_0", "player_1"]:
-            global_mask_units, global_mask_factories = torch.zeros(v_map.shape[0], 16, 16, 14), torch.zeros(v_map.shape[0], 16, 16, 7)
+            global_mask_units, global_mask_factories = torch.zeros(v_map.shape[0], 48, 48, 12), torch.zeros(v_map.shape[0], 48, 48, 5)
             for unit_type in state[team]:
                 if len(state[team][unit_type]) == 0:
                     modified_state[team][unit_type] = {}
@@ -250,12 +253,12 @@ class UltimateNet(nn.Module):
                     pos_x, pos_y = state[team][unit_type][1][i][0], state[team][unit_type][1][i][1]
                     modified_state[team][unit_type].append(torch.cat([state[team][unit_type][0][:, i].clone(), spatial_map[:, :, pos_x, pos_y].clone()], 1).unsqueeze(1))
                     if unit_type == "factories":
-                        mask = torch.zeros(v_map.shape[0], 16, 16, 7)
+                        mask = torch.zeros(v_map.shape[0], 48, 48, 5)
                         mask[0, pos_x, pos_y] = 1
                         mask *= state[team][unit_type][0][:, i].clone()
                         global_mask_factories += mask
                     if unit_type == "units":
-                        mask = torch.zeros(v_map.shape[0], 16, 16, 14)
+                        mask = torch.zeros(v_map.shape[0], 48, 48, 12)
                         mask[0, pos_x, pos_y] = 1
                         mask *= state[team][unit_type][0][:, i].clone()
                         global_mask_units += mask

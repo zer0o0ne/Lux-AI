@@ -166,6 +166,7 @@ def compute_direction(prepared_state_board, map_n, pos_x, pos_y):
     if prepared_state_board[0, map_n, max(pos_x - 1, 0), pos_y] == 1: return 4 
     if prepared_state_board[0, map_n, pos_x, max(pos_y - 1, 0)] == 1: return 1 
     if prepared_state_board[0, map_n, pos_x, min(pos_y + 1, 47)] == 1: return 3
+    return 0
 
 def compute_raw_action(best_ids, dim_action_space):
     raw_action = []

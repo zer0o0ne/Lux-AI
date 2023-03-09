@@ -30,9 +30,13 @@ class MMCTS:
                 numbers = np.array([child.N for child in self.children]) 
                 actions = [child.raw_action for child in self.children]
 
+                points = np.array([child.Q + child.u for child in self.children]) 
                 sum = numbers.sum()
                 distribution = numbers / (sum + 1e-9)
+                # print(points, numbers, self.V, self.N)
+                
                 probabilities_for_train = mean_across_dicts(list(zip(actions, numbers)), sum)
+                # print(probabilities_for_train, self.predictions)
                 return distribution, probabilities_for_train
 
             def get_leaf(self, n = 1):
@@ -190,7 +194,7 @@ class MMCTS:
                 if not type(prediction[unit_type]) == type(predictions[player][unit_type]): return 1
                 if len(prediction[unit_type]) == 0: continue
                 if not prediction[unit_type].shape == predictions[player][unit_type].shape: return 1
-                diff += torch.abs(F.softmax(prediction[unit_type], -1) - F.softmax(predictions[player][unit_type], -1)).mean(dim = 1).sum().item() / 4
+                diff += torch.abs(prediction[unit_type] - predictions[player][unit_type]).mean(dim = 1).sum().item() / 4
         
         return diff
         
