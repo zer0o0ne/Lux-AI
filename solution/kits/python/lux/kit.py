@@ -1,11 +1,14 @@
+import sys
+sys.path.append("solution/kits/python/")
+
 from dataclasses import dataclass, field
 from typing import Dict
 import numpy as np
-from luxai_s2.unit import UnitCargo
-from luxai_s2.config import EnvConfig
-from luxai_s2.team import Team, FactionTypes
-from luxai_s2.unit import Unit
-from luxai_s2.factory import Factory
+from lux.unit import UnitCargo
+from lux.config import EnvConfig
+from lux.team import Team, FactionTypes
+from lux.unit import Unit
+from lux.factory import Factory
 def process_action(action):
     return to_json(action)
 def to_json(obj):

@@ -8,7 +8,7 @@ from kits.python.luxai_s2.env import LuxAI_S2
 
 sys.path.append("kits/python/solution")
 
-from agent import MMCTS_Agent
+from agent import MMCTS_Agent, AlgorithmicAgent
 
 def play(n_games, n_rounds = 1000, agent_cfg_1 = None, agent_cfg_2 = None):
     if agent_cfg_1 is None:
@@ -35,8 +35,8 @@ def play(n_games, n_rounds = 1000, agent_cfg_1 = None, agent_cfg_2 = None):
         env = LuxAI_S2()
         obs = env.reset()["player_0"]
         # env.env_cfg.verbose = 0
-        agent_1 = MMCTS_Agent("player_0", env.env_cfg, agent_cfg_1)
-        agent_2 = MMCTS_Agent("player_1", env.env_cfg, agent_cfg_2)
+        agent_1 = MMCTS_Agent("player_0", env.env_cfg, agent_cfg_1) if agent_cfg_1["agent_type"] == "MMCTS" else AlgorithmicAgent("player_0", env.env_cfg, agent_cfg_1)
+        agent_2 = MMCTS_Agent("player_1", env.env_cfg, agent_cfg_2) if agent_cfg_2["agent_type"] == "MMCTS" else AlgorithmicAgent("player_1", env.env_cfg, agent_cfg_2)
         steps_before = -obs["real_env_steps"]
 
         action = {"player_0": agent_1.early_setup(0, obs), "player_1": agent_2.early_setup(0, obs)}

@@ -20,6 +20,8 @@ class DatasetBuilder(Dataset):
     def __init__(self, player, n_games = 200, device = "cpu"):
         super().__init__()
         games = os.listdir("solution/train")
+        idx = np.argsort([int(name.split("_")[0]) for name in games])
+        games = np.array(games)[idx]
         n_games = min(n_games, len(games))
         games = games[-n_games:]
 

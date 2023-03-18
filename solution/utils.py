@@ -6,8 +6,6 @@ from copy import deepcopy
 from scipy.ndimage import distance_transform_cdt
 from scipy.spatial import KDTree
 
-from kits.python.lux.kit import obs_to_game_state
-
 def update(node, v):
     node.N += 1
     node.V += v
@@ -39,7 +37,7 @@ def mean_across_dicts(dicts, N):
 
     return {"player_0": {"factories": factories_0 / N, "units": units_0 / N}, "player_1": {"factories": factories_1 / N, "units": units_1 / N}}
 
-def state_from_obs(state_, obs, env_cfg, step):
+def state_from_obs(state_, obs, env_cfg, step = 0):
     state = deepcopy(state_)
     return state.from_obs(obs, env_cfg)
 
@@ -84,6 +82,7 @@ def create_mask(state, type, subtype = None):
 
 def invalid_actions_factories(factory, prepared_state, player_number):
     inv_act = []
+    # inv_act = [2] # temp for start learning
 
     collision = (prepared_state["board"][0, player_number + 2, factory.pos.x, factory.pos.y] == 1 or prepared_state["board"][0, player_number + 4, factory.pos.x, factory.pos.y] == 1).item()
     # if len(prepared_state["player_0"]["units"]) > 0 or len(prepared_state["player_1"]["units"]) > 0:
@@ -96,6 +95,7 @@ def invalid_actions_factories(factory, prepared_state, player_number):
 
 def invalid_actions_unit(player, unit_id, prepared_state, state):
     inv_act = []
+    # inv_act = [5, 6, 7, 8, 9, 15, 16] # temp for start learning
 
     pos_x = state.units[player][unit_id].pos.x
     pos_y = state.units[player][unit_id].pos.y
@@ -166,6 +166,19 @@ def compute_direction(prepared_state_board, map_n, pos_x, pos_y):
     if prepared_state_board[0, map_n, max(pos_x - 1, 0), pos_y] == 1: return 4 
     if prepared_state_board[0, map_n, pos_x, max(pos_y - 1, 0)] == 1: return 1 
     if prepared_state_board[0, map_n, pos_x, min(pos_y + 1, 47)] == 1: return 3
+
+    if prepared_state_board[0, map_n + 4, pos_x, pos_y] == 1: return 0
+    if prepared_state_board[0, map_n + 4, min(pos_x + 1, 47), pos_y] == 1: return 2 
+    if prepared_state_board[0, map_n + 4, max(pos_x - 1, 0), pos_y] == 1: return 4 
+    if prepared_state_board[0, map_n + 4, pos_x, max(pos_y - 1, 0)] == 1: return 1 
+    if prepared_state_board[0, map_n + 4, pos_x, min(pos_y + 1, 47)] == 1: return 3
+
+    if prepared_state_board[0, map_n + 2, pos_x, pos_y] == 1: return 0
+    if prepared_state_board[0, map_n + 2, min(pos_x + 1, 47), pos_y] == 1: return 2 
+    if prepared_state_board[0, map_n + 2, max(pos_x - 1, 0), pos_y] == 1: return 4 
+    if prepared_state_board[0, map_n + 2, pos_x, max(pos_y - 1, 0)] == 1: return 1 
+    if prepared_state_board[0, map_n + 2, pos_x, min(pos_y + 1, 47)] == 1: return 3
+
     return 0
 
 def compute_raw_action(best_ids, dim_action_space):
@@ -231,13 +244,14 @@ def compute_start_mask(obs):
     # this is the distance to the n-th closest ore, for each coordinate
     ore_distances = [manhattan_dist_to_nth_closest(ore, i) for i in range(1,5)]
 
-    ICE_WEIGHTS = np.array([1, 0.5, 0.33, 0.25]) 
+    ICE_WEIGHTS = np.array([1, 0.2, 0.03, 0.005]) 
     weigthed_ice_dist = np.sum(np.array(ice_distances) * ICE_WEIGHTS[:, np.newaxis, np.newaxis], axis=0)
 
-    ORE_WEIGHTS = np.array([1, 0.5, 0.33, 0.25])
+    ORE_WEIGHTS = np.array([1, 0.1, 0.02, 0.005])
     weigthed_ore_dist = np.sum(np.array(ore_distances) * ORE_WEIGHTS[:, np.newaxis, np.newaxis], axis=0)
 
-    ICE_PREFERENCE = 3
+    ICE_PREFERENCE = 10
+    LOW_RUBBLE_PREFERENCE = 10
 
     combined_resource_score = (weigthed_ice_dist * ICE_PREFERENCE + weigthed_ore_dist)
     combined_resource_score = (np.max(combined_resource_score) - combined_resource_score) * obs["board"]["valid_spawns_mask"]
@@ -274,7 +288,7 @@ def compute_start_mask(obs):
         for j in range(low_rubble.shape[1]):
             low_rubble_scores[i,j] = count_region_cells(low_rubble, (i,j), min_dist=0, max_dist=8, exponent=0.9)
 
-    overall_score = low_rubble_scores*2 + combined_resource_score
+    overall_score = low_rubble_scores*LOW_RUBBLE_PREFERENCE + combined_resource_score
     return overall_score
 
 def to_json(obj):

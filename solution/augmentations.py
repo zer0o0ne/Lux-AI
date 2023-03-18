@@ -14,6 +14,10 @@ def ninety_degrees(state, distribution):
                     units_state[1][i] = [15 - units_state[1][i][1], units_state[1][i][0]]
                     units_state[0][0, i, -2], units_state[0][0, i, -1] = 2 - units_state[0][0, i, -1].item(), units_state[0][0, i, -2].item()
                     if unit_type == "units":
+                        if distribution[player][unit_type].shape[0] < units_state[0].shape[1]:
+                            print(distribution)
+                            print(state["player_0"])
+                            print(state["player_1"])
                         distribution[player][unit_type][i, 0], distribution[player][unit_type][i, 1], distribution[player][unit_type][i, 2], distribution[player][unit_type][i, 3] = distribution[player][unit_type][i, 1].clone(), distribution[player][unit_type][i, 2].clone(), distribution[player][unit_type][i, 3].clone(), distribution[player][unit_type][i, 0].clone()
     return state, distribution
 

@@ -4,15 +4,15 @@ import sys
 from argparse import Namespace
 sys.path.append("kits/python/")
 
-from agent import MMCTS_Agent
+from agent import AlgorithmicAgent
 from kits.python.luxai_s2.config import EnvConfig
 from kits.python.lux.kit import GameState, process_obs, to_json, from_json, process_action, obs_to_game_state
 ### DO NOT REMOVE THE FOLLOWING CODE ###
 agent_dict = dict() # store potentially multiple dictionaries as kaggle imports code directly
 agent_prev_obs = dict()
 agent_cfg = {
-            "estimator_n_iter": 4,
-            "MMCTS_n_iter": 4,
+            "estimator_n_iter": 16,
+            "MMCTS_n_iter": 64,
             "game_n": 1,
             "T": 1,
             "need_save": False,
@@ -31,7 +31,7 @@ def agent_fn(observation, configurations):
     remainingOverageTime = observation.remainingOverageTime
     if step == 0:
         env_cfg = EnvConfig.from_dict(configurations["env_cfg"])
-        agent_dict[player] = MMCTS_Agent(player, env_cfg, agent_cfg)
+        agent_dict[player] = AlgorithmicAgent(player, env_cfg, agent_cfg)
         agent_prev_obs[player] = dict()
         agent = agent_dict[player]
     agent = agent_dict[player]

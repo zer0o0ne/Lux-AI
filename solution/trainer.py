@@ -50,7 +50,7 @@ class Trainer:
                     loss = 0
 
                 predictions, v = self.model.predict(state, mode = "train", player_number = None)
-                loss += value_weight_policy_loss(predictions, v, vs, policies, self.player)
+                loss += value_policy_loss(predictions, v, vs, policies, self.player)
                 batch += 1
 
         number = self.weights_path.split("_")[-1]
