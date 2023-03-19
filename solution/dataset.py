@@ -17,7 +17,7 @@ AUGMENTATIONS = [
 ]
 
 class DatasetBuilder(Dataset):
-    def __init__(self, player, n_games = 200, device = "cpu"):
+    def __init__(self, n_games = 200, device = "cpu"):
         super().__init__()
         games = os.listdir("solution/train")
         idx = np.argsort([int(name.split("_")[0]) for name in games])
@@ -31,6 +31,7 @@ class DatasetBuilder(Dataset):
                 player_0_reward = torch.tensor(json.load(f), dtype = torch.float).to(device)
             with open(f'solution/train/{game}/player_1_reward.json', 'r') as f:
                 player_1_reward = torch.tensor(json.load(f), dtype = torch.float).to(device)
+            reward = player_0_reward if "player_0" in game else player_1_reward
             for file in os.listdir("solution/train/" + game):
                 if "reward" in file:
                     continue
@@ -42,7 +43,7 @@ class DatasetBuilder(Dataset):
                 for augm in AUGMENTATIONS:
                     state, distribution = augm(data["state"], data["distribution"])
                     self.prepared_states.append(state)
-                    self.vs.append({"player_0": player_0_reward, "player_1": player_1_reward})
+                    self.vs.append({"reward": reward, "player_0": player_0_reward, "player_1": player_1_reward})
                     self.policies.append(distribution)
         idx = np.random.permutation(len(self.vs))
         self.prepared_states, self.vs, self.policies = np.array(self.prepared_states), np.array(self.vs), np.array(self.policies)

@@ -8,86 +8,84 @@ from time import time
 
 import torch.nn.functional as F
 
-# TODO compare action queue with action for every robot
+#Support class which realizes graph logic
+class Node:
+    def __init__(self, p, parent, action, raw_action = None, state = None, T = 1):
+        self.p, self.u, self.T = p, T * p, T
+        self.parent, self.state = parent, state
+        self.action = action
+        self.prepared_state, self.raw_action = None, raw_action
+        self.Q, self.N, self.V = 0, 0, 0
+        self.children = []
+
+    def make_root(self):
+        del self.parent
+        self.parent = None
+
+    def get_distribution(self):
+        numbers = np.array([child.N for child in self.children]) 
+        actions = [child.raw_action for child in self.children]
+
+        points = np.array([child.Q + child.u for child in self.children]) 
+        sum = numbers.sum()
+        distribution = numbers / (sum + 1e-9)
+        # print(points, numbers, self.V, self.N, self)
+        
+        probabilities_for_train = mean_across_dicts(list(zip(actions, numbers)), sum)
+        # print(probabilities_for_train, self.predictions)
+        return distribution, probabilities_for_train
+
+    def get_leaf(self, n = 1):
+        if len(self.children) == 0: return self, -1
+        scores = [child.Q + child.u for child in self.children]
+        leaf, score = self.children[np.argmax(scores)].get_leaf(n + 1)
+        if score < 0:
+            score = n
+        return leaf, score
+
+    def inspect(self, raw_actions, env_actions, P, v, prepared_state, predictions, ids):
+        assert len(P) == len(env_actions)
+
+        # Need to future train 
+        self.prepared_state = prepared_state
+        self.predictions = predictions
+        self.ids, self.v = ids, v
+
+        for i in range(len(P)):
+            self.children.append(Node(P[i], self, env_actions[i], raw_actions[i], T = self.T))
+        update(self, v)
+
+    def _compute_action_queue(self, unit_id, player, n_in = 0):
+        if len(self.children) == 0 or n_in == 20: return []
+
+        numbers = np.array([child.N for child in self.children]) 
+        best_child = np.argmax(numbers)
+        if unit_id in self.children[best_child].action[player]:
+            return self.children[best_child].action[player][unit_id] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
+        else:
+            return [np.array([5, 0, 0, 0, 0, 1])] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
+        
+    def update_states(self, simulator):
+        for child in self.children:
+            for player in child.action:
+                for unit_id in child.action[player]:
+                    if unit_id not in self.state.factories[player] and unit_id not in self.state.units[player] and unit_id in child.action:
+                        child.action.pop(unit_id)
+
+            if child.state is not None:
+                simulator.set_state(deepcopy(self.state))
+                simulator.step(child.action)
+                child.state = deepcopy(simulator.get_state())
+                child.update_states(simulator)
+
 class MMCTS:
     def __init__(self, initial_state, simulator, estimator, path, n_iter, player_number, env_cfg, T = 1, need_save = False):
-
-        #Support class which realizes graph logic
-        class Node:
-            def __init__(self, p, parent, action, raw_action = None, state = None, T = 1):
-                self.p, self.u, self.T = p, T * p, T
-                self.parent, self.state = parent, state
-                self.action = action
-                self.prepared_state, self.raw_action = None, raw_action
-                self.Q, self.N, self.V = 0, 0, 0
-                self.children = []
-
-            def make_root(self):
-                del self.parent
-                self.parent = None
-
-            def get_distribution(self):
-                numbers = np.array([child.N for child in self.children]) 
-                actions = [child.raw_action for child in self.children]
-
-                points = np.array([child.Q + child.u for child in self.children]) 
-                sum = numbers.sum()
-                distribution = numbers / (sum + 1e-9)
-                # print(points, numbers, self.V, self.N)
-                
-                probabilities_for_train = mean_across_dicts(list(zip(actions, numbers)), sum)
-                # print(probabilities_for_train, self.predictions)
-                return distribution, probabilities_for_train
-
-            def get_leaf(self, n = 1):
-                if len(self.children) == 0: return self, -1
-                scores = [child.Q + child.u for child in self.children]
-                leaf, score = self.children[np.argmax(scores)].get_leaf(n + 1)
-                if score < 0:
-                    score = n
-                return leaf, score
-
-            def inspect(self, raw_actions, env_actions, P, v, prepared_state, predictions, ids):
-                assert len(P) == len(env_actions)
-
-                # Need to future train 
-                self.prepared_state = prepared_state
-                self.predictions = predictions
-                self.ids, self.v = ids, v
-
-                for i in range(len(P)):
-                    self.children.append(Node(P[i], self, env_actions[i], raw_actions[i], T = self.T))
-                update(self, v)
-
-            def _compute_action_queue(self, unit_id, player, n_in = 0):
-                if len(self.children) == 0 or n_in == 20: return []
-
-                numbers = np.array([child.N for child in self.children]) 
-                best_child = np.argmax(numbers)
-                if unit_id in self.children[best_child].action[player]:
-                    return self.children[best_child].action[player][unit_id] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
-                else:
-                    return [np.array([5, 0, 0, 0, 0, 1])] + self.children[best_child]._compute_action_queue(unit_id, player, n_in + 1)
-                
-            def update_states(self, simulator):
-                for child in self.children:
-                    for player in child.action:
-                        for unit_id in child.action[player]:
-                            if unit_id not in self.state.factories[player] and unit_id not in self.state.units[player] and unit_id in child.action:
-                                child.action.pop(unit_id)
-
-                    if child.state is not None:
-                        simulator.set_state(deepcopy(self.state))
-                        simulator.step(child.action)
-                        child.state = deepcopy(simulator.get_state())
-                        child.update_states(simulator)
-
         self.simulator = simulator
         self.estimator = estimator
         self.need_save = need_save
         self.path, self.n_iter, self.n = path, n_iter, 0
         self.root = Node(1, None, None, None, initial_state, T)
-        self.env_cfg, self.player_number = env_cfg, player_number
+        self.env_cfg, self.player_number, self.T = env_cfg, player_number, T
         if need_save:
             makedirs(path, exist_ok=True)
 
@@ -156,8 +154,7 @@ class MMCTS:
         #     self.root.update_states(self.simulator)
         #     return True
         
-        self.root.state = state
-        self.root.children.clear()
+        self.root = Node(1, None, None, None, state, self.T)
         return False
     
     def _compare_action_and_queue(self, actual_queue_state, predicted_action, player):

@@ -31,19 +31,23 @@ def play(n_games, n_rounds = 1000, agent_cfg_1 = None, agent_cfg_2 = None):
             "weights_path": 'solution/weights_2'
         }
 
+    role_0 = "player_0"
+    role_1 = "player_1"
+
     for n in tqdm(range(n_games), desc = "games in one cycle"):
+        role_0, role_1 = role_1, role_0
         env = LuxAI_S2()
         obs = env.reset()["player_0"]
         # env.env_cfg.verbose = 0
-        agent_1 = MMCTS_Agent("player_0", env.env_cfg, agent_cfg_1) if agent_cfg_1["agent_type"] == "MMCTS" else AlgorithmicAgent("player_0", env.env_cfg, agent_cfg_1)
-        agent_2 = MMCTS_Agent("player_1", env.env_cfg, agent_cfg_2) if agent_cfg_2["agent_type"] == "MMCTS" else AlgorithmicAgent("player_1", env.env_cfg, agent_cfg_2)
+        agent_1 = MMCTS_Agent(role_0, env.env_cfg, agent_cfg_1) if agent_cfg_1["agent_type"] == "MMCTS" else AlgorithmicAgent(role_0, env.env_cfg, agent_cfg_1)
+        agent_2 = MMCTS_Agent(role_1, env.env_cfg, agent_cfg_2) if agent_cfg_2["agent_type"] == "MMCTS" else AlgorithmicAgent(role_1, env.env_cfg, agent_cfg_2)
         steps_before = -obs["real_env_steps"]
 
-        action = {"player_0": agent_1.early_setup(0, obs), "player_1": agent_2.early_setup(0, obs)}
+        action = {role_0: agent_1.early_setup(0, obs), role_1: agent_2.early_setup(0, obs)}
         obs = env.step(action)[0]["player_0"]
 
         while obs["real_env_steps"] < 0:
-            action = {"player_0": agent_1.early_setup(steps_before + obs["real_env_steps"], obs), "player_1": agent_2.early_setup(steps_before + obs["real_env_steps"], obs)}
+            action = {role_0: agent_1.early_setup(steps_before + obs["real_env_steps"], obs), role_1: agent_2.early_setup(steps_before + obs["real_env_steps"], obs)}
             obs = env.step(action)[0]["player_0"]
 
         for step in range(steps_before, steps_before + n_rounds): 
@@ -53,7 +57,7 @@ def play(n_games, n_rounds = 1000, agent_cfg_1 = None, agent_cfg_2 = None):
             # time_2 = time()
             act_2 = agent_2.act(step, obs)
             # time_2 = time() - time_2
-            action = {"player_0": act_1, "player_1": act_2}
+            action = {role_0: act_1, role_1: act_2}
             obs, rewards, dones, _ = env.step(action)
             obs = obs["player_0"]
             if dones["player_0"] or dones["player_1"]:
